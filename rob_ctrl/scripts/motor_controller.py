@@ -50,13 +50,7 @@ class Motorcontroller():
 		self.pWhite_Board_TX.Set_Speed_M0 = speed_M0
 		self.pWhite_Board_TX.Set_Speed_M1 = speed_M1
 		self.pWhite_Board_TX.Heart_Beat = 1
-		#self.pWhite_Board_TX.Digital_Out = 0x01
-		buf = cast(byref(self.pWhite_Board_TX), POINTER(c_char * sizeof(self.pWhite_Board_TX)))
-		print(sizeof(self.pWhite_Board_TX))
-		retlen, retdata = wiringpi.wiringPiSPIDataRW(self.SPI_CHANNEL, buf.contents.raw)
-		print(retlen)
-		print(retdata)
-		pass
+		self.pWhite_Board_TX.Digital_Out = 0x00
 	
 
 	def reset_encoders(self):
@@ -87,15 +81,31 @@ class Motorcontroller():
 		# serialize data and send over SPI
 		buf = cast(byref(self.pWhite_Board_TX), POINTER(c_char * sizeof(self.pWhite_Board_TX)))
 		retlen, retdata = wiringpi.wiringPiSPIDataRW(self.SPI_CHANNEL, buf.contents.raw)
+		memmove(pointer(self.pWhite_Board_RX), retdata, sizeof(self.pWhite_Board_RX))
+		print(self.pWhite_Board_RX.Position_M0)
 				
 
 def main():
 	controller = Motorcontroller()
 	controller.reset_encoders()
-	while(True):
-	    controller.set_speed(-30,-30)
-	size = sizeof(controller.pWhite_Board_TX)
-	print(size)
+	controller.set_speed(-30,-30)
+	while(controller.pWhite_Board_RX.Position_M0 > -10000):
+		buf = cast(byref(controller.pWhite_Board_TX), POINTER(c_char * sizeof(controller.pWhite_Board_TX)))
+		retlen, retdata = wiringpi.wiringPiSPIDataRW(controller.SPI_CHANNEL, buf.contents.raw)
+		memmove(pointer(controller.pWhite_Board_RX), retdata, sizeof(controller.pWhite_Board_RX))
+		print(controller.pWhite_Board_RX.Position_M0)
+	controller.set_speed(0, -30)
+	while(controller.pWhite_Board_RX.Position_M1 > -20000):
+		buf = cast(byref(controller.pWhite_Board_TX), POINTER(c_char * sizeof(controller.pWhite_Board_TX)))
+		retlen, retdata = wiringpi.wiringPiSPIDataRW(controller.SPI_CHANNEL, buf.contents.raw)
+		memmove(pointer(controller.pWhite_Board_RX), retdata, sizeof(controller.pWhite_Board_RX))
+		print(controller.pWhite_Board_RX.Position_M1)
+	controller.set_speed(-30, -30)
+	while(controller.pWhite_Board_RX.Position_M1 > -30000):
+		buf = cast(byref(controller.pWhite_Board_TX), POINTER(c_char * sizeof(controller.pWhite_Board_TX)))
+		retlen, retdata = wiringpi.wiringPiSPIDataRW(controller.SPI_CHANNEL, buf.contents.raw)
+		memmove(pointer(controller.pWhite_Board_RX), retdata, sizeof(controller.pWhite_Board_RX))
+		print(controller.pWhite_Board_RX.Position_M0)
 	return
 
 if __name__ == "__main__":

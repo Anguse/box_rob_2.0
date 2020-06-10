@@ -9,9 +9,13 @@
     <param name="angle_compensate"    type="bool"   value="true"/>
   </node>
 
+  <!-- transforms -->
+  <node name="laser2base" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 base_link laser 50"/>
+  <!--<node name="scan2laser" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 laser scan 50"/>-->
+
   <arg name="geotiff_map_file_path" default="$(find hector_geotiff)/maps"/>
   <param name="/use_sim_time" value="false"/>
-  <include file="$(find hector_mapping)/launch/mapping_default.launch"/>
+  <include file="$(find hector_mapping)/launch/mapping_custom.launch"/>
   <include file="$(find hector_geotiff)/launch/geotiff_mapper.launch">
     <arg name="trajectory_source_frame_name" value="scanmatcher_frame"/>
     <arg name="map_file_path" value="$(arg geotiff_map_file_path)"/>
