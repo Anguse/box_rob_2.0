@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import rospy
 from ctypes import *
 import sys
@@ -5,6 +6,7 @@ import wiringpi
 from math import sin, cos, pi
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
+import tf
 
 
 class TYPE_White_Board_TX(Structure):
@@ -44,21 +46,20 @@ class Motorcontroller():
 	def __init__(self):
 		self.SPI_CHANNEL = 1
 		self.SPI_SPEED = 4000000
-		wiringpi.wiringPiSPISetup(self.SPI_CHANNEL, self.SPI_SPEED
+		wiringpi.wiringPiSPISetup(self.SPI_CHANNEL, self.SPI_SPEED)
 		self.pWhite_Board_RX=TYPE_White_Board_RX()
 		self.pWhite_Board_TX=TYPE_White_Board_TX()
 
 		# odom
 		self.odom_pub=rospy.Publisher("odom", Odometry, queue_size=50)
-		self.odom_broadcast=tf.TransformBroadcaster()
+		self.odom_broadcaster=tf.TransformBroadcaster()
 		self.x=0.0
 		self.y=0.0
 		self.th=0.0
 		self.vx=0.1
-		self.vy=-0.1
-		self.vth=0.1
+		self.vy=0.0
+		self.vth=0.0
 		self.last_time=rospy.Time.now()
-		pass
 
 	def update_odom(self):
 		current_time=rospy.Time.now()
@@ -98,6 +99,9 @@ class Motorcontroller():
 
 		# publish the message
 		self.odom_pub.publish(odom)
+		rospy.loginfo(self.x)
+		rospy.loginfo(self.y)
+		rospy.loginfo(self.th)
 		self.last_time=current_time
 
 	def get_encoder_values(self):
@@ -144,9 +148,10 @@ class Motorcontroller():
 		print(self.pWhite_Board_RX.Position_M0)
 
 def main():
+	rospy.init_node('rob_ctrl')
 	controller=Motorcontroller()
 	controller.reset_encoders()
-	r=rospy.rate(1.0)
+	r=rospy.Rate(1.0)
 	while not rospy.is_shutdown():
 		controller.update_odom()
 		r.sleep()

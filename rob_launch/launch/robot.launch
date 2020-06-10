@@ -10,7 +10,15 @@
   </node>
 
   <!-- transforms -->
-  <node name="laser2base" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 base_link laser 50"/>
+  <!--<node name="laser2base" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 base_link laser 50"/>-->
+  <node pkg="tf" type="static_transform_publisher" name="map_to_odom" 
+      args="0.0 0.0 0.0 0 0 0.0 /map /odom 40" />
+  <node pkg="tf" type="static_transform_publisher" name="odom_to_basefootprint" 
+      args="0.0 0.0 0.0 0 0 0.0 /odom /base_footprint 40" />
+  <node pkg="tf" type="static_transform_publisher" name="base_footprint_to_base_link" 
+      args="0.0 0.0 0.0 0 0 0.0 /base_footprint /base_link 40" />
+  <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser" 
+      args="0.2245 0.0 0.2 0.0 0.0 0.0 /base_link /laser 40" />
   <!--<node name="scan2laser" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 laser scan 50"/>-->
 
   <arg name="geotiff_map_file_path" default="$(find hector_geotiff)/maps"/>
@@ -20,4 +28,7 @@
     <arg name="trajectory_source_frame_name" value="scanmatcher_frame"/>
     <arg name="map_file_path" value="$(arg geotiff_map_file_path)"/>
   </include>
+
+  <!-- controller -->
+  <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py"/>
 </launch>
