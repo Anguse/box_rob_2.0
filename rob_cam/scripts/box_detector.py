@@ -8,6 +8,8 @@ import std_msgs
 from collections import deque
 from imutils.video import VideoStream
 from std_msgs.msg import String
+from sensor_msgs.msg import Image
+from cv_bridge import CvBridge
 
 
 time.sleep(2.0)
@@ -15,6 +17,10 @@ time.sleep(2.0)
 rospy.init_node('tracker', anonymous=True)
 pub = rospy.Publisher('camera', String, queue_size = 10)
 box_pub = rospy.Publisher('box_finder', String, queue_size=10)
+cam_raw_pub = rospy.Publisher('camera_raw', Image, queue_size=10)
+cam_box_pub = rospy.Publisher('camera_box', Image, queue_size=10)
+bridge = CvBridge()
+
 rate = rospy.Rate(10) # 10hz
 
 cap = cv2.VideoCapture(0)
@@ -47,7 +53,7 @@ while not rospy.is_shutdown():
     
     
 
-    (contours, hierarchy) = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    _, contours, hierarchy = cv2.findContours(edges, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
     if len(contours) != 0:
         c = max(contours, key = cv2.contourArea)
         x,y,w,h = cv2.boundingRect(c)
@@ -86,8 +92,10 @@ while not rospy.is_shutdown():
                 pub.publish('zero')
             except:
                 pub.publish('one')
-
-    cv2.imshow('Median Blur',median)
+	
+	cam_raw_pub.publish(bridge.cv2_to_imgmsg(frame, encoding="passthrough"))
+	cam_box_pub.publish(bridge.cv2_to_imgmsg(median, encoding="passthrough"))
+    #cv2.imshow('Median Blur',median)
     
     k = cv2.waitKey(5) & 0XFF
     if k == 27:
