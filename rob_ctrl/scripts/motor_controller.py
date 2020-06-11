@@ -6,6 +6,7 @@ import wiringpi
 from math import sin, cos, pi, degrees 
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
+from std_msgs.msg import Int16
 import tf
 
 # dc motor with 19:1 gear
@@ -14,9 +15,9 @@ import tf
 ENCODER = 128
 ENCODER_COUNTER = 4
 SAMPLE_TIME = 0.01
-GEAR_REDUCTION = 15.5/24.0 # adjust
-GEARBOX_RATIO = (24.0/1.0)*(1.0/2.5) # verify
-WHEEL_CIRC = 42.0*pi # adjust
+GEAR_REDUCTION = 15.5/24.0
+GEARBOX_RATIO = (24.0/1.0)*(1.0/2.5) 
+WHEEL_CIRC = 42.0*pi
 WHEELBASE_MM = 225.0
 PULSES_PER_REVOLUTION = ENCODER*ENCODER_COUNTER*GEAR_REDUCTION
 MM_PER_PULSE = WHEEL_CIRC/(PULSES_PER_REVOLUTION*GEARBOX_RATIO)
@@ -55,6 +56,11 @@ class TYPE_White_Board_RX(Structure):
 # class for steering motors
 class Motorcontroller():
     def __init__(self):
+	# subscribers
+	self.sub_left = rospy.Subscriber('left_wheel', Int16, self.left_cb)
+	self.sub_right = rospy.Subscriber('right_wheel', Int16, self.right_cb) 
+
+	# spi comm
         self.SPI_CHANNEL = 1
         self.SPI_SPEED = 4000000
         wiringpi.wiringPiSPISetup(self.SPI_CHANNEL, self.SPI_SPEED)
@@ -75,6 +81,20 @@ class Motorcontroller():
         self.vth = 0.0
         self.last_time = rospy.Time.now()
 
+    def left_cb(self, msg):
+	rospy.loginfo(msg.data)
+	self.pWhite_Board_TX.Set_Speed_M1 = int(msg.data)
+        self.pWhite_Board_TX.Status = 1
+        self.pWhite_Board_TX.Heart_Beat = 1
+        self.pWhite_Board_TX.Digital_Out = 0x00
+
+    def right_cb(self, msg):
+	rospy.loginfo(msg.data)
+	self.pWhite_Board_TX.Set_Speed_M0 = int(msg.data)
+        self.pWhite_Board_TX.Status = 1
+        self.pWhite_Board_TX.Heart_Beat = 1
+        self.pWhite_Board_TX.Digital_Out = 0x00
+
     def update_odom(self):
         current_time = rospy.Time.now()
         # compute odometry in a typical way given the velocities of the robot
@@ -82,7 +102,6 @@ class Motorcontroller():
 	self.vx = ((self.delta0+self.delta1)/2)/dt
 	self.vy = 0.0
 	self.vth = ((self.delta0-self.delta1)/(WHEELBASE_MM/1000))/dt # estimation a bit slow
-	rospy.loginfo(self.vth)
 
         delta_x = (self.vx * cos(self.th) - self.vy * sin(self.th)) * dt
         delta_y = (self.vx * sin(self.th) + self.vy * cos(self.th)) * dt
@@ -187,20 +206,10 @@ def main():
     rospy.init_node('rob_ctrl')
     controller = Motorcontroller()
     controller.reset_encoders()
-    controller.set_speed(30, 30)
     r = rospy.Rate(20.0)
-    dist = 0
-    start_time = rospy.Time.now()
     while not rospy.is_shutdown():
 	controller.send_encoder_values()
 	controller.update_odom()
-	t_pass = (rospy.Time.now() - start_time).to_sec()
-	if t_pass > 5 and t_pass < 8:
-		controller.set_speed(30, -30)
-	elif t_pass > 8 and t_pass < 13:
-		controller.set_speed(30, 30)
-	elif t_pass > 13:
-		break
 	r.sleep()
     return
 
