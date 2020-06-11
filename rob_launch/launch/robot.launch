@@ -30,5 +30,5 @@
   </include>
 
   <!-- controller -->
-  <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py"/>
+  <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py" output="screen"/>
 </launch>
