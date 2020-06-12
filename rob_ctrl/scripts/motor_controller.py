@@ -7,6 +7,7 @@ from math import sin, cos, pi, degrees
 from nav_msgs.msg import Odometry
 from geometry_msgs.msg import Point, Pose, Quaternion, Twist, Vector3
 from std_msgs.msg import Int16
+from visualization_msgs.msg import Marker
 import tf
 
 # dc motor with 19:1 gear
@@ -56,9 +57,31 @@ class TYPE_White_Board_RX(Structure):
 # class for steering motors
 class Motorcontroller():
     def __init__(self):
-	# subscribers
+	# subscribers & publishers
 	self.sub_left = rospy.Subscriber('left_wheel', Int16, self.left_cb)
 	self.sub_right = rospy.Subscriber('right_wheel', Int16, self.right_cb) 
+	self.marker = rospy.Publisher('home', Marker, queue_size=1)
+
+	# publish start position
+	home = Marker()
+	home.header.frame_id = "base_link"
+	home.header.stamp = rospy.Time.now()
+	#home.ns = "beizer"
+	home.type = home.CUBE
+	home.action = home.ADD
+	home.id = 0
+	home.scale.x = 0.1
+	home.scale.y = 0.1
+	home.scale.z = 0.1
+	home.pose.position.x = 0
+	home.pose.position.y = 0
+	home.pose.position.z = 0
+	home.color.a = 1.0
+	home.color.g = 0.5
+	home.color.b = 0.5
+	self.home = home
+	self.marker.publish(home)
+	
 
 	# spi comm
         self.SPI_CHANNEL = 1
@@ -210,6 +233,7 @@ def main():
     while not rospy.is_shutdown():
 	controller.send_encoder_values()
 	controller.update_odom()
+	controller.marker.publish(controller.home)
 	r.sleep()
     return
 
