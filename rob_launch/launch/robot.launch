@@ -18,7 +18,7 @@
   <node pkg="tf" type="static_transform_publisher" name="base_footprint_to_base_link" 
       args="0.0 0.0 0.0 0 0 0.0 /base_footprint /base_link 40" />
   <node pkg="tf" type="static_transform_publisher" name="base_link_to_laser" 
-      args="0.2245 0.0 0.2 0.0 0.0 0.0 /base_link /laser 40" />
+      args="0.0 0.01 0.0 0.0 0.0 0.0 /base_link /laser 40" />
   <!--<node name="scan2laser" pkg="tf" type="static_transform_publisher" args="0 0 0 0 0 0 laser scan 50"/>-->
 
   <arg name="geotiff_map_file_path" default="$(find hector_geotiff)/maps"/>
@@ -33,4 +33,6 @@
   <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py" output="screen"/>
   <!-- camera -->
   <node name="rob_cam" pkg="rob_cam" type="box_detector.py"/>
+  <!-- state machine -->
+  <!--<node name="rob_state" pkg="rob_state" type="test_state.py"/>-->
 </launch>
