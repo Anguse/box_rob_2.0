@@ -80,7 +80,7 @@ class Motorcontroller():
 	home.color.g = 0.5
 	home.color.b = 0.5
 	self.home = home
-	self.marker.publish(home)
+	#self.marker.publish(home)
 	
 
 	# spi comm
@@ -233,7 +233,7 @@ def main():
     while not rospy.is_shutdown():
 	controller.send_encoder_values()
 	controller.update_odom()
-	controller.marker.publish(controller.home)
+	#controller.marker.publish(controller.home)
 	r.sleep()
     return
 
