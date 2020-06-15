@@ -10,8 +10,9 @@ import math
 import std_msgs
 from collections import deque
 from std_msgs.msg import String, Int16, Int32
-from geometry_msgs.msg import Pose, Point, Quaternion
+from geometry_msgs.msg import PoseStamped, Point, Quaternion, Pose
 from visualization_msgs.msg import Marker
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 #from imutils.video import VideoStream
 
 #Global variables for publishing, used in several states.
@@ -33,7 +34,7 @@ class glob_listen:
         self.box_found_sub = rospy.Subscriber('box_finder', String, self.foundbox_cb)
         self.eval_box_sub = rospy.Subscriber('camera', String, self.evalbox_cb)
         self.ir_sub = rospy.Subscriber('ir', String, self.ir_cb)
-        self.pos_sub = rospy.Subscriber('slam_out_pose', Pose, self.pos_cb)
+        self.pos_sub = rospy.Subscriber('slam_out_pose', PoseStamped, self.pos_cb)
         self.init_sub = rospy.Subscriber('home', Marker, self.home_cb)
 
     def foundbox_cb(self, data):
@@ -57,11 +58,12 @@ class glob_listen:
             ir_sens = True
 
     def pos_cb(self, data):
-        #Make data into rob_pos
-        rospy.loginf(data.data)
-        g_pose = data.data
+        global g_pose
+        g_pose = data.pose
+        #rospy.loginfo(g_pose)
 
     def home_cb(self, data):
+        global g_home
         g_home = data
 
 
@@ -71,59 +73,69 @@ class drive_straight(smach.State):
         smach.State.__init__(self, outcomes=['middle','driving'])
 
     def execute(self, userdata):
-
-        rospy.loginfo(g_pose.position.x)
-        if g_pose.position.x > .05:
+        r = rospy.Rate(10)
+        r.sleep()
+        if g_pose.position.x > 0.2:
             return 'middle'
         else:
             g_leftWheel_pub.publish(30)
             g_rightWheel_pub.publish(30)
-           # g_leftWheel_pub.publish(0)
-           # g_rightWheel_pub.publish(0)
             return 'driving'
 class drive_home(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['driving_home', 'home'])
+        self.dist = 100
 
     def travel_home(self):
+        r = rospy.Rate(40)
+        r.sleep()
         #rob_pos = self.rob_pos
         #home_pos = init_pos
         #TODO: Introduce init_pos x,y
-        dX = g_home.pose.position.x - g_pose.position.x
-        dY = g_home.pose.position.y - g_pose.position.y
-        dist = math.sqrt(pow(dX,2)+pow(dY,2))
+
+        orientation_q = g_pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
+
+        start_x = 0
+        start_y = 0
+
+        dX = start_x - g_pose.position.x
+        dY = start_y - g_pose.position.y
+        self.dist = math.sqrt(pow(dX,2)+pow(dY,2))
         direction = math.atan2(dX,dY)
 
 
-        robot_angle = math.degrees(float(g_pose.orientation.w))
-        angle_difference = (robot_angle - math.degrees(float(direction)))
+        robot_angle = float(yaw)
+        #rospy.loginfo("yaw:%s"%str(yaw)) # radians [pi, -pi]
+        rospy.loginfo("direction:%s"%str(direction))
+        angle_difference = robot_angle-direction+math.radians(90)
+        rospy.loginfo("angle_diff:%s"%str(angle_difference))
+        #rospy.loginfo(self.dist)
 
-        if abs(angle_difference) > 10.0 and dist > 30 :
-            if angle_difference < 0:
+        if abs(angle_difference) > math.radians(5):
+            if angle_difference < math.radians(180):
                 #turn right
-                g_leftWheel_pub.publish(-30)
-                g_rightWheel_pub.publish(30)
-                g_leftWheel_pub.publish(0)
-                g_rightWheel_pub.publish(0)
-            elif(angle_difference > 0):
+                rospy.loginfo("right")
+                g_leftWheel_pub.publish(10)
+                g_rightWheel_pub.publish(-10)
+            elif angle_difference > math.radians(180):
                 #turn left
-                g_leftWheel_pub.publish(30)
-                g_rightWheel_pub.publish(-30)
-                g_leftWheel_pub.publish(0)
-                g_rightWheel_pub.publish(0)
-        elif dist > 30:
-            #move straight
-            g_leftWheel_pub.publish(30)
-            g_rightWheel_pub.publish(30)
-            g_leftWheel_pub.publish(0)
-            g_rightWheel_pub.publish(0)
+                rospy.loginfo("left")
+                g_leftWheel_pub.publish(-10)
+                g_rightWheel_pub.publish(10)
+        elif self.dist > 0.05:
+            g_leftWheel_pub.publish(20)
+            g_rightWheel_pub.publish(20)
 
 
     def execute(self, userdata):
-        if g_pose.position.x == g_home.pose.position.x:
+        if self.dist < 0.05:
+            g_leftWheel_pub.publish(0)
+            g_rightWheel_pub.publish(0)
             return 'home'
         else:
-            travel_home()
+            self.travel_home()
             return 'driving_home'
 
 
@@ -132,9 +144,9 @@ def main():
 
     global_listener = glob_listen()
 
-    r = rospy.Rate(20)
-    while not rospy.is_shutdown():
-        r.sleep()
+    #r = rospy.Rate(20)
+    #while not rospy.is_shutdown():
+    #    r.sleep()
     # Create a SMACH state machine
     sm = smach.StateMachine(outcomes=['done'])
     # Open the container
@@ -145,7 +157,6 @@ def main():
                                transitions={'driving':'DRIVE_STRAIGHT', 'middle':'DRIVE_HOME'})
         smach.StateMachine.add('DRIVE_HOME', drive_home(),
                                transitions={'driving_home':'DRIVE_HOME','home':'done'})
-
 
     # Execute SMACH plan
     outcome = sm.execute()
