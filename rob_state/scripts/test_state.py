@@ -75,18 +75,20 @@ class drive_straight(smach.State):
     def execute(self, userdata):
         r = rospy.Rate(10)
         r.sleep()
-        if g_pose.position.x > 0.2:
+        if g_pose.position.x > 1.5:
             return 'middle'
         else:
             g_leftWheel_pub.publish(30)
             g_rightWheel_pub.publish(30)
             return 'driving'
+
 class drive_home(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['driving_home', 'home'])
         self.dist = 100
 
     def travel_home(self):
+        global g_pose
         r = rospy.Rate(40)
         r.sleep()
         #rob_pos = self.rob_pos
@@ -103,34 +105,36 @@ class drive_home(smach.State):
         dX = start_x - g_pose.position.x
         dY = start_y - g_pose.position.y
         self.dist = math.sqrt(pow(dX,2)+pow(dY,2))
-        direction = math.atan2(dX,dY)
+        direction = math.degrees(math.atan2(dY,dX)) # swapped dx, dy
 
 
-        robot_angle = float(yaw)
-        #rospy.loginfo("yaw:%s"%str(yaw)) # radians [pi, -pi]
+        robot_angle = math.degrees(float(yaw))
+        rospy.loginfo("yaw:%s"%str(robot_angle)) # radians [pi, -pi]
         rospy.loginfo("direction:%s"%str(direction))
-        angle_difference = robot_angle-direction+math.radians(90)
+        angle_difference = (float(direction)-robot_angle+180)%(360)-180
         rospy.loginfo("angle_diff:%s"%str(angle_difference))
         #rospy.loginfo(self.dist)
 
-        if abs(angle_difference) > math.radians(5):
-            if angle_difference < math.radians(180):
+        if abs(angle_difference) > 10.0 and self.dist > 0.05:
+            if angle_difference < 0:
                 #turn right
                 rospy.loginfo("right")
-                g_leftWheel_pub.publish(10)
-                g_rightWheel_pub.publish(-10)
-            elif angle_difference > math.radians(180):
+                g_leftWheel_pub.publish(20)
+                g_rightWheel_pub.publish(-20)
+            elif angle_difference > 0:
                 #turn left
                 rospy.loginfo("left")
-                g_leftWheel_pub.publish(-10)
-                g_rightWheel_pub.publish(10)
+                g_leftWheel_pub.publish(-20)
+                g_rightWheel_pub.publish(20)
         elif self.dist > 0.05:
             g_leftWheel_pub.publish(20)
             g_rightWheel_pub.publish(20)
+        else:
+            rospy.loginfo("done")
 
 
     def execute(self, userdata):
-        if self.dist < 0.05:
+        if self.dist <= 0.05:
             g_leftWheel_pub.publish(0)
             g_rightWheel_pub.publish(0)
             return 'home'
