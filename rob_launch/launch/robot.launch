@@ -32,7 +32,8 @@
   <!-- controller -->
   <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py" output="screen"/>
   <!-- camera -->
-  <node name="rob_cam" pkg="rob_cam" type="box_detector.py"/>
+  <include file="$(find raspicam_node)/launch/camerav2_410x308_30fps.launch"/>
+  <node name="rob_cam" pkg="rob_cam" type="cam_sub.py" output="screen"/>
   <!-- state machine -->
   <!--<node name="rob_state" pkg="rob_state" type="test_state.py"/>-->
 </launch>
