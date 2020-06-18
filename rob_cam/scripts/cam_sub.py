@@ -15,28 +15,32 @@ frameCentX = int(frame_width/2)
 frameCentY = int(frame_height/2)
 
 # publishers
-pub = rospy.Publisher('box_digit', String, queue_size = 10)
-box_pub = rospy.Publisher('box_location', String, queue_size=10)
-collected_pub = rospy.Publisher('box_collected', String, queue_size=10)
+pub = rospy.Publisher('box_digit', String, queue_size = 1)
+box_pub = rospy.Publisher('box_location', String, queue_size=1)
+collected_pub = rospy.Publisher('box_collected', String, queue_size=1)
+filtered_pub = rospy.Publisher('cam_filtered', Image, queue_size=1)
 bridge = CvBridge()
 
 def cam_cb(msg):
+    rospy.loginfo("received_image")
     np_arr = np.fromstring(msg.data, np.uint8)
     frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
     #frame = bridge.imgmsg_to_cv2(msg.data, desired_encoding='passthrough')
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     kernel = np.ones((9,9), np.uint8)
+
+    box_msg = String()
     
 
-    lower_blue = np.array([90, 125, 0])
+    lower_blue = np.array([25, 50, 0])
     upper_blue = np.array([180, 255, 255])
 
     blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     res = cv2.bitwise_and(frame,frame, mask= blue_mask)
     
     kernel = np.ones((15,15),np.float32)/225
-    smoothed = cv2.filter2D(res,-1,kernel)
+    #smoothed = cv2.filter2D(res,-1,kernel)
     median = cv2.medianBlur(res,15)
     median_gray = cv2.medianBlur(gray, 15)
     edges = cv2.Canny(median, 30, 200)
@@ -48,7 +52,7 @@ def cam_cb(msg):
         c = max(contours, key = cv2.contourArea)
         x,y,w,h = cv2.boundingRect(c)
         #Moments of contour, to calculate distance from center for the contour
-	if cv.contourArea(c) > 45000:
+	if cv2.contourArea(c) > 10000:
 	    collected_pub.publish("collected")
         M = cv2.moments(c)
         #
@@ -62,12 +66,12 @@ def cam_cb(msg):
         #How far from the center is the object located
         distFromCen = frameCentX - cX
         #Publish to topic where box is located, will use Centered box as transition to Collect.
-        if distFromCen > 80:
-            box_pub.publish('Box to the left')
-        elif distFromCen < -80:
-            box_pub.publish('Box to the right')
+        if distFromCen > 50:
+            box_msg.data = 'Box to the left'
+        elif distFromCen < -50:
+            box_msg.data = 'Box to the right'
         else:
-            box_pub.publish('Centered box')
+            box_msg.data = 'Centered box'
 
         
         if cv2.contourArea(c) > 500:
@@ -76,26 +80,28 @@ def cam_cb(msg):
                                     param1=200,param2=26,minRadius=10,maxRadius=250)
 
                 circles = np.uint16(np.around(circles))
+		'''
                 for i in circles[0,:]:
                     # draw the outer circle
                     cv2.circle(median,(i[0],i[1]),i[2],(0,255,0),2)
                     # draw the center of the circle
                     cv2.circle(median,(i[0],i[1]),2,(0,0,255),3)
+		'''
                 pub.publish('zero')
             except:
                 pub.publish('one')
     else:
 	pub.publish('none')
-	box_pub.publish('No box visible')
-    
-    
-    
+	box_msg.data = 'No box visible'
+    box_pub .publish(box_msg)
+    #filtered_pub.publish(bridge.cv2_to_imgmsg(median, encoding="passthrough"))
+    rospy.loginfo("done") 
 
 
 def main():
     rospy.init_node('cam_sub')
-    cam_sub = rospy.Subscriber('/raspicam_node/image/compressed/', CompressedImage, cam_cb)
-    r = rospy.Rate(30)
+    cam_sub = rospy.Subscriber('/raspicam_node/image/compressed', CompressedImage, cam_cb)
+    r = rospy.Rate(10)
     while not rospy.is_shutdown():
 	r.sleep()
 

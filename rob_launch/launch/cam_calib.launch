@@ -32,12 +32,13 @@
   <!-- controller -->
   <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py"/>
   <!-- camera -->
-  <node name="rob_cam" pkg="rob_cam" type="old_box_detector.py" output="screen"/>
-  <!--<include file="$(find raspicam_node)/launch/camerav2_320x240_10fps.launch"/>-->
+  <!--<node name="rob_cam" pkg="rob_cam" type="old_box_detector.py"/>-->
+  <include file="$(find raspicam_node)/launch/camerav2_320x240_10fps.launch"/>
   <!-- republish as raw-->
   <!--<node pkg="image_transport" type="republish" name="raw_republish" args="compressed in:=raspicam_node/image raw out:=image"/>-->
   <!-- hsv filter -->
-  <!--<include file="$(find opencv_apps)/launch/custom_hsv_color_filter.launch"/>-->
+  <include file="$(find opencv_apps)/launch/custom_hsv_color_filter.launch"/>
+  <node name="dynamic_reconfigure_load" pkg="dynamic_reconfigure" type="dynparam" args="load /hsv_color_filter $(find box_rob)/params/hsv.yaml" />
   <!--<node name="rob_cam" pkg="rob_cam" type="cam_sub.py" output="screen"/>-->
   <!-- state machine -->
   <!--<node name="rob_state" pkg="rob_state" type="test_state.py"/>-->

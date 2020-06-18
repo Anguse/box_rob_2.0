@@ -1,0 +1,29 @@
+!!python/object/new:dynamic_reconfigure.encoding.Config
+dictitems:
+  groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+    dictitems:
+      groups: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      h_limit_max: 267
+      h_limit_min: 118
+      id: 0
+      name: Default
+      parameters: !!python/object/new:dynamic_reconfigure.encoding.Config
+        state: []
+      parent: 0
+      s_limit_max: 255
+      s_limit_min: 86
+      state: true
+      type: ''
+      use_camera_info: true
+      v_limit_max: 237
+      v_limit_min: 0
+    state: []
+  h_limit_max: 267
+  h_limit_min: 118
+  s_limit_max: 255
+  s_limit_min: 86
+  use_camera_info: true
+  v_limit_max: 237
+  v_limit_min: 0
+state: []
