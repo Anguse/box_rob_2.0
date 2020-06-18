@@ -16,8 +16,8 @@ from tf.transformations import euler_from_quaternion, quaternion_from_euler
 #from imutils.video import VideoStream
 
 #Global variables for publishing, used in several states.
-g_leftWheel_pub = rospy.Publisher('left_wheel', Int16, queue_size=-1)
-g_rightWheel_pub = rospy.Publisher('right_wheel', Int16, queue_size=-1)
+g_leftWheel_pub = rospy.Publisher('left_wheel', Int16, queue_size=1)
+g_rightWheel_pub = rospy.Publisher('right_wheel', Int16, queue_size=1)
 
 g_pose = Pose()
 g_box_finder = String()
@@ -28,6 +28,8 @@ collected = False
 centered_box = False
 box_place = 0
 box_one = False
+turned_left = False
+turned_right = False
 
 class glob_listen:
     def __init__(self):
@@ -42,10 +44,15 @@ class glob_listen:
         global box_place
         if data.data == 'Centered box':
             centered_box = True
-        if data.data == 'Box to the right':
+        elif data.data == 'Box to the right':
+            centered_box = False
             box_place = 1
-        if data.data == 'Box to the left':
+        elif data.data == 'Box to the left':
             box_place = -1
+            centered_box = False
+        else:
+            box_place = 0
+            centered_box = False
 
     def evalbox_cb(self, data):
         #Subscriber of topic that says wheter zero or one
@@ -57,6 +64,8 @@ class glob_listen:
         global collected
         if data.data == 'collected':
             collected = True
+        else:
+            collected = False
 
     def pos_cb(self, data):
         global g_pose
@@ -76,11 +85,11 @@ class drive_straight(smach.State):
     def execute(self, userdata):
         r = rospy.Rate(10)
         r.sleep()
-        if g_pose.position.x > 0.2:
+        if g_pose.position.x > 1:
             return 'middle'
         else:
-            g_leftWheel_pub.publish(30)
-            g_rightWheel_pub.publish(30)
+            g_leftWheel_pub.publish(70)
+            g_rightWheel_pub.publish(70)
             return 'driving'
 
 
@@ -91,6 +100,8 @@ class drive_home(smach.State):
 
     def travel_home(self):
         global g_pose
+        global turned_right
+        global turned_left
         r = rospy.Rate(40)
         r.sleep()
 
@@ -114,26 +125,42 @@ class drive_home(smach.State):
         rospy.loginfo("angle_diff:%s"%str(angle_difference))
         #rospy.loginfo(self.dist)
 
-        if abs(angle_difference) > 10.0 and self.dist > 0.05:
+        if abs(angle_difference) > 20.0 and self.dist > 0.08:
             if angle_difference < 0:
                 #turn right
+                turned_right = True
+                turned_left = False
                 rospy.loginfo("right")
                 g_leftWheel_pub.publish(20)
                 g_rightWheel_pub.publish(-20)
             elif angle_difference > 0:
                 #turn left
+                turned_right = False
+                turned_left = True
                 rospy.loginfo("left")
                 g_leftWheel_pub.publish(-20)
                 g_rightWheel_pub.publish(20)
-        elif self.dist > 0.05:
-            g_leftWheel_pub.publish(20)
-            g_rightWheel_pub.publish(20)
+        elif self.dist > 0.08:
+            if turned_left:
+                turned_left = False
+                g_leftWheel_pub.publish(80)
+                g_rightWheel_pub.publish(40)
+                rospy.sleep(1)
+
+            elif turned_right:
+                turned_right = False
+                g_leftWheel_pub.publish(40)
+                g_rightWheel_pub.publish(80)
+                rospy.sleep(1)
+            else:
+                g_leftWheel_pub.publish(40)
+                g_rightWheel_pub.publish(40)
         else:
             rospy.loginfo("done")
 
 
     def execute(self, userdata):
-        if self.dist <= 0.05:
+        if self.dist <= 0.08:
             g_leftWheel_pub.publish(0)
             g_rightWheel_pub.publish(0)
             return 'home'
@@ -144,21 +171,25 @@ class drive_home(smach.State):
 class Search(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['centered_box','no_box','box_right','box_left'])
-        self.centered_box = False
-        self.box_place = 0
 
     #  The four possible outcomes from frame is , box centered, no box, to the right or to the left.
     # This will produce different transitions, which eventually will continue to Evalbox state.
 
+
     def execute(self, userdata):
         rospy.loginfo('Executing state Search')
         #Is there a box in frame, if so, centered left or right?
+        #g_leftWheel_pub.publish(0)
+        #g_rightWheel_pub.publish(0)
         if centered_box:
+            g_leftWheel_pub.publish(0)
+            g_rightWheel_pub.publish(0)
+            rospy.sleep(1)
             return 'centered_box'
         elif box_place == 1:
             return 'box_right'
         elif box_place == -1:
-            return 'box left'
+            return 'box_left'
         else:
             return 'no_box'
 
@@ -177,24 +208,39 @@ class Evalbox(smach.State):
 class Collect(smach.State):
     def __init__(self):
         smach.State.__init__(self, outcomes=['collected','collecting','transition','lost_box'])
-        self.collecting = False
     #Drive straight
-    def collecting(self):
-        g_leftWheel_pub.publish(20)
-        g_rightWheel_pub.publish(20)
+    def go_to_box(self):
+        global turned_right
+        global turned_left
+        # if last turned, compensate
+        if turned_left:
+            g_leftWheel_pub.publish(80)
+            g_rightWheel_pub.publish(40)
+            turned_left = False
+            rospy.sleep(.5)
+        elif turned_right:
+            g_rightWheel_pub.publish(80)
+            g_leftWheel_pub.publish(40)
+            turned_right = False
+            rospy.sleep(.5)
+        else:
+            g_leftWheel_pub.publish(30)
+            g_rightWheel_pub.publish(30)
+            rospy.sleep(0.1)
 
     def execute(self, userdata):
         #Publish to vel for motors, drive forward until ir sensor detects box
         #Can the sensor detect a box
-        self.collecting = True
+        g_leftWheel_pub.publish(0)
+        g_rightWheel_pub.publish(0)
         if collected:
-            self.collecting = False
+            g_leftWheel_pub.publish(40)
+            g_rightWheel_pub.publish(40)
+            rospy.sleep(3.0)
             return 'collected'
-        elif self.collecting and g_box_finder == 'centered':
-            self.collecting()
+        elif centered_box:
+            self.go_to_box()
             return 'collecting'
-        elif g_box_eval == 'zero':
-            return 'transition'
         else:
             return 'lost_box'
 
@@ -226,8 +272,16 @@ class Turn_Right(smach.State):
 
     def execute(self, userdata):
          #turn right
-        g_leftWheel_pub.publish(-20)
-        g_rightWheel_pub.publish(20)
+        global turned_right
+        global turned_left
+        turned_right = True
+        turned_left = False
+        g_leftWheel_pub.publish(20)
+        g_rightWheel_pub.publish(-20)
+        rospy.sleep(0.3)
+        g_leftWheel_pub.publish(0)
+        g_rightWheel_pub.publish(0)
+        rospy.sleep(1.5)
         return 'turned'
 
 
@@ -238,8 +292,16 @@ class Turn_Left(smach.State):
 
     def execute(self, userdata):
          #turn left
-        g_leftWheel_pub.publish(20)
-        g_rightWheel_pub.publish(-20)
+        global turned_right
+        global turned_left
+        turned_right = False
+        turned_left = True
+        g_leftWheel_pub.publish(-20)
+        g_rightWheel_pub.publish(20)
+        rospy.sleep(0.3)
+        g_leftWheel_pub.publish(0)
+        g_rightWheel_pub.publish(0)
+        rospy.sleep(1.5)
         return 'turned'
 
 
@@ -253,7 +315,7 @@ def main():
     #while not rospy.is_shutdown():
     #    r.sleep()
     # Create a SMACH state machine
-    sm = smach.StateMachine(outcomes=['done'])
+    sm = smach.StateMachine(outcomes=['DONE'])
     # Open the container
     with sm:
         #TODO:Might add state and class for when collected two boxes and "script" is done.
@@ -272,9 +334,9 @@ def main():
         smach.StateMachine.add('DRIVE_STRAIGHT', drive_straight(),
                                transitions={'driving':'DRIVE_STRAIGHT', 'middle':'SEARCH'})
         smach.StateMachine.add('DRIVE_HOME', drive_home(),
-                               transitions={'driving_home':'DRIVE_HOME','home':'done'})
+                               transitions={'driving_home':'DRIVE_HOME','home':'DONE'})
         smach.StateMachine.add('SEARCH', Search(),
-                               transitions={'centered_box':'EVALBOX', 'no_box':'done','box_right':'TURN_RIGHT','box_left':'TURN_LEFT'})
+                               transitions={'centered_box':'EVALBOX', 'no_box':'TURN_RIGHT','box_right':'TURN_RIGHT','box_left':'TURN_LEFT'})
         smach.StateMachine.add('EVALBOX', Evalbox(),
                                transitions={'zero':'COLLECT','one':'COLLECT'})
         smach.StateMachine.add('TURN_RIGHT', Turn_Right(),
@@ -282,7 +344,7 @@ def main():
         smach.StateMachine.add('TURN_LEFT', Turn_Left(),
                                transitions={'turned':'SEARCH'})
         smach.StateMachine.add('COLLECT', Collect(),
-                               transitions={'collected':'DRIVE_HOME','collecting':'COLLECT','transition':'done','lost_box':'SEARCH'})
+                               transitions={'collected':'DRIVE_HOME','collecting':'COLLECT','transition':'DONE','lost_box':'SEARCH'})
 
     # Execute SMACH plan
     outcome = sm.execute()
