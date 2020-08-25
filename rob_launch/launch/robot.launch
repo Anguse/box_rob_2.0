@@ -33,6 +33,8 @@
   <node name="rob_ctrl" pkg="rob_ctrl" type="motor_controller.py"/>
   <!-- camera -->
   <node name="rob_cam" pkg="rob_cam" type="old_box_detector.py" output="screen"/>
+  <!-- logger -->
+  <node name="rob_logger" pkg="rob_logger" type="logger.py"/>
   <!--<include file="$(find raspicam_node)/launch/camerav2_320x240_10fps.launch"/>-->
   <!-- republish as raw-->
   <!--<node pkg="image_transport" type="republish" name="raw_republish" args="compressed in:=raspicam_node/image raw out:=image"/>-->
