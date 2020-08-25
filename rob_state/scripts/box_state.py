@@ -1,4 +1,13 @@
 #!/usr/bin/env python
+'''=======================================================
+*
+*21/8 2020
+*When I left this day the robot drives out, avoids zeros 
+* and collects ones. A bit slow however(2 min 30s). Might also need some tuning
+* Camera works as intented, it's the avoiding manouver that needs tuning" 
+*
+========================================================'''
+
 import rospy
 import smach
 import smach_ros
@@ -59,7 +68,8 @@ class glob_listen:
         global box_one
         if data.data == 'one':
             box_one = True
-
+        else:
+            box_one = False
     def collected_cb(self, data):
         global collected
         if data.data == 'collected':
@@ -83,13 +93,27 @@ class drive_straight(smach.State):
         smach.State.__init__(self, outcomes=['middle','driving'])
 
     def execute(self, userdata):
+        global turned_right
+        global turned_left
+
         r = rospy.Rate(10)
         r.sleep()
         if g_pose.position.x > 1:
             return 'middle'
         else:
-            g_leftWheel_pub.publish(70)
-            g_rightWheel_pub.publish(70)
+            if turned_right:
+                g_leftWheel_pub.publish(60)
+                g_rightWheel_pub.publish(85)
+                rospy.sleep(1)
+                turned_right = False
+            elif turned_left:
+                g_leftWheel_pub.publish(85)
+                g_rightWheel_pub.publish(60)
+                rospy.sleep(1)
+                turned_left = False
+            else:
+                g_leftWheel_pub.publish(70)
+                g_rightWheel_pub.publish(70)
             return 'driving'
 
 
@@ -143,23 +167,31 @@ class drive_home(smach.State):
         elif self.dist > 0.08:
             if turned_left:
                 turned_left = False
-                g_leftWheel_pub.publish(80)
+                g_leftWheel_pub.publish(60)
                 g_rightWheel_pub.publish(40)
                 rospy.sleep(1)
 
             elif turned_right:
                 turned_right = False
                 g_leftWheel_pub.publish(40)
-                g_rightWheel_pub.publish(80)
+                g_rightWheel_pub.publish(60)
                 rospy.sleep(1)
             else:
-                g_leftWheel_pub.publish(40)
-                g_rightWheel_pub.publish(40)
+                g_leftWheel_pub.publish(50)
+                g_rightWheel_pub.publish(50)
         else:
             rospy.loginfo("done")
 
 
     def execute(self, userdata):
+        global g_pose
+        start_x = 0
+        start_y = 0
+
+        dX = start_x - g_pose.position.x
+        dY = start_y - g_pose.position.y
+        self.dist = math.sqrt(pow(dX,2)+pow(dY,2))
+
         if self.dist <= 0.08:
             g_leftWheel_pub.publish(0)
             g_rightWheel_pub.publish(0)
@@ -203,6 +235,9 @@ class Evalbox(smach.State):
         if box_one:
             return 'one'
         else:
+            g_leftWheel_pub.publish(40)
+            g_rightWheel_pub.publish(-40)
+            rospy.sleep(.3)
             return 'zero'
 
 class Collect(smach.State):
@@ -233,7 +268,7 @@ class Collect(smach.State):
         #Can the sensor detect a box
         g_leftWheel_pub.publish(0)
         g_rightWheel_pub.publish(0)
-        if collected:
+        if collected and centered_box:
             g_leftWheel_pub.publish(40)
             g_rightWheel_pub.publish(40)
             rospy.sleep(3.0)
@@ -248,23 +283,32 @@ class Collect(smach.State):
 
 class Drop_Box(smach.State):
     def __init__(self):
-        smach.State.__init__(self, outcomes=['dropped','reverse'])
+        smach.State.__init__(self, outcomes=['dropped'])
 
     def execute(self, userdata):
         #Check if no contour is taking up "majority" of frame, can assume that box is dropped.
+        global g_pose
+        global collected
+        g_leftWheel_pub.publish(-40)
+        g_rightWheel_pub.publish(-40)
+        rospy.sleep(3)
+        collected = False
+        orientation_q = g_pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
+        while math.degrees(abs(yaw)) > 60:
+            rospy.loginfo(math.degrees(yaw))
+            # turn right
+            g_leftWheel_pub.publish(10)
+            g_rightWheel_pub.publish(-10)
+            rospy.sleep(.2)
+            orientation_q = g_pose.orientation
+            orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+            (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
+        return 'dropped'
 
-        if not collected:
-            return 'dropped'
-        else:
-            #To back up
-            start_time = time.time()
-            if((time.time()-start_time) <= 3.0):
-                g_leftWheel_pub(-20)
-                g_rightWheel_pub(-20)
-            elif((time.time()-start_time) > 3.0 and (time.time()-start_time) <= 5.0):
-                g_leftWheel_pub(-20)
-                g_rightWheel_pub(20)
-            return 'reverse'
+
+
 
 class Turn_Right(smach.State):
     def __init__(self):
@@ -334,11 +378,13 @@ def main():
         smach.StateMachine.add('DRIVE_STRAIGHT', drive_straight(),
                                transitions={'driving':'DRIVE_STRAIGHT', 'middle':'SEARCH'})
         smach.StateMachine.add('DRIVE_HOME', drive_home(),
-                               transitions={'driving_home':'DRIVE_HOME','home':'DONE'})
+                               transitions={'driving_home':'DRIVE_HOME','home':'DROP_BOX'})
+        smach.StateMachine.add('DROP_BOX', Drop_Box(),
+                               transitions={'dropped':'DRIVE_STRAIGHT'})
         smach.StateMachine.add('SEARCH', Search(),
                                transitions={'centered_box':'EVALBOX', 'no_box':'TURN_RIGHT','box_right':'TURN_RIGHT','box_left':'TURN_LEFT'})
         smach.StateMachine.add('EVALBOX', Evalbox(),
-                               transitions={'zero':'COLLECT','one':'COLLECT'})
+                               transitions={'zero':'EVALBOX','one':'COLLECT'})
         smach.StateMachine.add('TURN_RIGHT', Turn_Right(),
                                transitions={'turned':'SEARCH'})
         smach.StateMachine.add('TURN_LEFT', Turn_Left(),

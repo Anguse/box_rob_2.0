@@ -73,8 +73,8 @@ def cam_cb(msg):
         
         if cv2.contourArea(c) > 5000:
             try:
-                circles = cv2.HoughCircles(median_gray,cv2.HOUGH_GRADIENT,1,20,
-                                    param1=250,param2=30,minRadius=50,maxRadius=250)
+                circles = cv2.HoughCircles(median_gray,cv2.HOUGH_GRADIENT,1,100,
+                                    param1=200,param2=14,minRadius=50,maxRadius=100)
 
                 circles = np.uint16(np.around(circles))
                 for i in circles[0,:]:
