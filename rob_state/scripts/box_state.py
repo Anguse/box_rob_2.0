@@ -103,11 +103,11 @@ class drive_straight(smach.State):
         else:
             if turned_right:
                 g_leftWheel_pub.publish(60)
-                g_rightWheel_pub.publish(85)
+                g_rightWheel_pub.publish(65)
                 rospy.sleep(1)
                 turned_right = False
             elif turned_left:
-                g_leftWheel_pub.publish(85)
+                g_leftWheel_pub.publish(65)
                 g_rightWheel_pub.publish(60)
                 rospy.sleep(1)
                 turned_left = False
@@ -235,9 +235,12 @@ class Evalbox(smach.State):
         if box_one:
             return 'one'
         else:
+            g_leftWheel_pub.publish(-40)
+            g_rightWheel_pub.publish(-40)
+            rospy.sleep(.5)
             g_leftWheel_pub.publish(40)
             g_rightWheel_pub.publish(-40)
-            rospy.sleep(.3)
+	    rospy.sleep(.5) 
             return 'zero'
 
 class Collect(smach.State):
@@ -250,12 +253,12 @@ class Collect(smach.State):
         # if last turned, compensate
         if turned_left:
             g_leftWheel_pub.publish(80)
-            g_rightWheel_pub.publish(40)
+            g_rightWheel_pub.publish(20)
             turned_left = False
             rospy.sleep(.5)
         elif turned_right:
             g_rightWheel_pub.publish(80)
-            g_leftWheel_pub.publish(40)
+            g_leftWheel_pub.publish(20)
             turned_right = False
             rospy.sleep(.5)
         else:
@@ -266,9 +269,21 @@ class Collect(smach.State):
     def execute(self, userdata):
         #Publish to vel for motors, drive forward until ir sensor detects box
         #Can the sensor detect a box
+	global turned_right
+	global turned_left
         g_leftWheel_pub.publish(0)
         g_rightWheel_pub.publish(0)
         if collected and centered_box:
+	    if turned_left:
+            	g_leftWheel_pub.publish(40)
+            	g_rightWheel_pub.publish(40)
+		rospy.sleep(.2)
+		turned_left = False
+	    elif turned_right:
+            	g_leftWheel_pub.publish(40)
+            	g_rightWheel_pub.publish(40)
+		rospy.sleep(.2)
+		turned_right = False
             g_leftWheel_pub.publish(40)
             g_rightWheel_pub.publish(40)
             rospy.sleep(3.0)
@@ -318,14 +333,26 @@ class Turn_Right(smach.State):
          #turn right
         global turned_right
         global turned_left
+	global g_pose
         turned_right = True
         turned_left = False
-        g_leftWheel_pub.publish(20)
-        g_rightWheel_pub.publish(-20)
-        rospy.sleep(0.3)
-        g_leftWheel_pub.publish(0)
-        g_rightWheel_pub.publish(0)
-        rospy.sleep(1.5)
+        orientation_q = g_pose.orientation
+        orientation_list = [orientation_q.x, orientation_q.y, orientation_q.z, orientation_q.w]
+        (roll, pitch, yaw) = euler_from_quaternion (orientation_list)
+	print(math.degrees(yaw))
+	if(math.degrees(yaw) < -100 or math.degrees(yaw) > 150):
+	    # spin fast
+	    g_leftWheel_pub.publish(40)
+	    g_rightWheel_pub.publish(-40)
+	    rospy.sleep(0.01)
+	else:    	
+            g_leftWheel_pub.publish(20)
+            g_rightWheel_pub.publish(-20)
+            rospy.sleep(0.3)
+            g_leftWheel_pub.publish(0)
+            g_rightWheel_pub.publish(0)
+            rospy.sleep(1.3)
+
         return 'turned'
 
 
@@ -345,7 +372,7 @@ class Turn_Left(smach.State):
         rospy.sleep(0.3)
         g_leftWheel_pub.publish(0)
         g_rightWheel_pub.publish(0)
-        rospy.sleep(1.5)
+        rospy.sleep(1.3)
         return 'turned'
 
 

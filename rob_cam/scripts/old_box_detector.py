@@ -56,7 +56,7 @@ while not rospy.is_shutdown():
     frame = cv2.GaussianBlur(frame, (5,5), 0)
     hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
     lower_blue = np.array([68, 80, 50])
-    upper_blue = np.array([120, 255, 255])
+    upper_blue = np.array([112, 255, 255])
     blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
     mask1 = cv2. erode(blue_mask, None, iterations=2)
     mask1 = cv2.dilate(mask1, None, iterations=4)
@@ -69,6 +69,7 @@ while not rospy.is_shutdown():
     if len(cnts) != 0:
         
         nearest_contour = max(cnts, key = cv2.contourArea)
+	rospy.loginfo(cv2.contourArea(nearest_contour))
 
         x, y, w, h = cv2.boundingRect(nearest_contour)
 
